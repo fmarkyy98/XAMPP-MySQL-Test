@@ -64,10 +64,10 @@ Our best bet is to use some NuGet packages to interact with the database.
 
 Simple approach using direct SQL commands.
 
-See `MySql.Data based solution` region in source.
+See `MySql.Data based solution` region in [source](https://github.com/fmarkyy98/XAMPP-MySQL-Test/blob/main/src/DbTest/Program.cs).
 
 ## `EntityFramework`
 
 More robust ORM based solution.
 
-See `EntityFramework based solution` region in source.
+See `EntityFramework based solution` region in [source](https://github.com/fmarkyy98/XAMPP-MySQL-Test/blob/main/src/DbTest/Program.cs).

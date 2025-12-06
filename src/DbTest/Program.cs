@@ -167,7 +167,7 @@ namespace DbTest
                     var cat_isCute = reader.GetBoolean(2);
                     var cat_color = reader.GetString(3);
 
-                    if (!reader.IsDBNull(4))
+                    if (!reader.IsDBNull(4)) // Check if Foreign Key is not NULL
                     {
                         var cat_ownerId = reader.GetInt32(4);
                         var owner_id = reader.GetInt32(5);
@@ -237,3 +237,4 @@ namespace DbTest
         #endregion
     }
 }
+

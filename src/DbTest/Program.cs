@@ -13,7 +13,7 @@ namespace DbTest
         static async Task Main(string[] args)
         {
             await Solution1();
-            await Solution2();
+            // await Solution2();
         }
 
         #region MySql.Data based solution
@@ -21,16 +21,57 @@ namespace DbTest
         static async Task Solution1()
         {
             var server = "localhost";
-            var database = "my_test_db";
             var user = "root";
             var password = "";
+            var database = "my_test_db";
 
-            var connection = new MySqlConnection($"Server={server};Database={database};Uid={user};Pwd={password};");
+            // 1) First connect to SQL server WITHOUT database selected
+            var rootConnectionString = $"Server={server};Uid={user};Pwd={password};";
+            using (var rootConnection = new MySqlConnection(rootConnectionString))
+            {
+                await rootConnection.OpenAsync();
+
+                // 1.1) Ensure database exists
+                using (var cmd = new MySqlCommand($"CREATE DATABASE IF NOT EXISTS `{database}`;", rootConnection))
+                {
+                    await cmd.ExecuteNonQueryAsync();
+                    Console.WriteLine($"Database '{database}' ensured.");
+                }
+            }
+
+            // 2) Now connect WITH the database specified
+            var connectionString = $"Server={server};Database={database};Uid={user};Pwd={password};";
+            using var connection = new MySqlConnection(connectionString);
             await connection.OpenAsync();
-            Console.WriteLine("Connected!");
+            Console.WriteLine($"Connected to database '{database}'.");
 
-            using var cmd = new MySqlCommand("SELECT * FROM `cats`;", connection);
-            using var reader = await cmd.ExecuteReaderAsync();
+            // 2.1) Ensure table exists
+            var createTableSql = @"
+                    CREATE TABLE IF NOT EXISTS `cats` (
+                        `ID`      INT AUTO_INCREMENT PRIMARY KEY,
+                        `Name`    VARCHAR(255) NOT NULL,
+                        `Is_Cute` BOOLEAN NOT NULL,
+                        `Color`   VARCHAR(255) NOT NULL
+                    );
+                    ";
+
+            using (var cmd = new MySqlCommand(createTableSql, connection))
+            {
+                await cmd.ExecuteNonQueryAsync();
+                Console.WriteLine("Table 'cats' ensured.");
+            }
+
+            // At this point the scheme setup was successfull. It's we can start manipulate the DB.
+
+
+            // 3) Add some test data to the database.
+            // TODO
+
+
+            // 4) SELECT data
+            using var selectCmd = new MySqlCommand("SELECT * FROM `cats`;", connection);
+            using var reader = await selectCmd.ExecuteReaderAsync();
+
             while (await reader.ReadAsync())
             {
                 var id = reader.GetInt32(0);
@@ -42,13 +83,14 @@ namespace DbTest
             }
         }
 
+
         #endregion
 
         #region EntityFramework based solution
 
         public class Cat
         {
-            [Column("Cat_Id")]
+            [Column("ID")]
             public int Id { get; set; }
 
             [Column("Name")]

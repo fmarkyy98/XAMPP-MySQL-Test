@@ -1,10 +1,9 @@
-﻿using System;
-using System.Threading.Tasks;
-
+﻿using Microsoft.EntityFrameworkCore;
 using MySql.Data.MySqlClient;
-
-using Microsoft.EntityFrameworkCore;
+using System;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Reflection.PortableExecutable;
+using System.Threading.Tasks;
 
 namespace DbTest
 {
@@ -47,13 +46,13 @@ namespace DbTest
 
             // 2.1) Ensure table exists
             var createTableSql = @"
-                    CREATE TABLE IF NOT EXISTS `cats` (
-                        `ID`      INT AUTO_INCREMENT PRIMARY KEY,
-                        `Name`    VARCHAR(255) NOT NULL,
-                        `Is_Cute` BOOLEAN NOT NULL,
-                        `Color`   VARCHAR(255) NOT NULL
-                    );
-                    ";
+                CREATE TABLE IF NOT EXISTS `cats` (
+                    `ID`      INT AUTO_INCREMENT PRIMARY KEY,
+                    `Name`    VARCHAR(255) NOT NULL,
+                    `Is_Cute` BOOLEAN NOT NULL,
+                    `Color`   VARCHAR(255) NOT NULL
+                );
+            ";
 
             using (var cmd = new MySqlCommand(createTableSql, connection))
             {
@@ -65,21 +64,62 @@ namespace DbTest
 
 
             // 3) Add some test data to the database.
-            // TODO
+            using (var cmd = new MySqlCommand("SELECT COUNT(*) FROM `cats`;", connection))
+            {
+                // 3.1) Check if table already contains data
+                var existingRows = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+
+                if (existingRows == 0)
+                {
+                    Console.WriteLine("No existing rows found. Inserting sample cats...");
+
+                    // 3.2) Insert a few test records using parameterized queries
+                    var insertSql = @"
+                        INSERT INTO `cats` (`Name`, `Is_Cute`, `Color`)
+                        VALUES (@name, @cute, @color);
+                    ";
+
+                    using var insertCmd = new MySqlCommand(insertSql, connection);
+
+                    insertCmd.Parameters.Add("@name", MySqlDbType.VarChar);
+                    insertCmd.Parameters.Add("@cute", MySqlDbType.Byte);
+                    insertCmd.Parameters.Add("@color", MySqlDbType.VarChar);
+
+                    // Helper to avoid repeating parameter code
+                    async Task InsertCat(string name, bool cute, string color)
+                    {
+                        insertCmd.Parameters["@name"].Value = name;
+                        insertCmd.Parameters["@cute"].Value = cute ? (byte)1 : (byte)0;
+                        insertCmd.Parameters["@color"].Value = color;
+                        await insertCmd.ExecuteNonQueryAsync();
+                    }
+
+                    await InsertCat("Pimpi", true, "Brown");
+                    await InsertCat("Luna", true, "White");
+                    await InsertCat("Shadow", false, "Black");
+
+                    Console.WriteLine("Sample data inserted.");
+                }
+                else
+                {
+                    Console.WriteLine("Table already contains data. Skipping sample insert.");
+                }
+            }
 
 
             // 4) SELECT data
-            using var selectCmd = new MySqlCommand("SELECT * FROM `cats`;", connection);
-            using var reader = await selectCmd.ExecuteReaderAsync();
-
-            while (await reader.ReadAsync())
+            using (var cmd = new MySqlCommand("SELECT * FROM `cats`;", connection))
+            using (var reader = await cmd.ExecuteReaderAsync())
             {
-                var id = reader.GetInt32(0);
-                var name = reader.GetString(1);
-                var isCute = reader.GetBoolean(2);
-                var color = reader.GetString(3);
+                while (await reader.ReadAsync())
+                {
+                    var id = reader.GetInt32(0);
+                    var name = reader.GetString(1);
+                    var isCute = reader.GetBoolean(2);
+                    var color = reader.GetString(3);
 
-                Console.WriteLine($"{id}|{name}|{isCute}|{color}");
+                    Console.WriteLine($"{id}|{name}|{isCute}|{color}");
+                }
             }
         }
 

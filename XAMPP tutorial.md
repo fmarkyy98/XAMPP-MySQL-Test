@@ -62,11 +62,15 @@ Our best bet is to use some NuGet packages to interact with the database.
 
 ## `MySql.Data`
 
+https://www.nuget.org/packages/mysql.data
+
 Simple approach using direct SQL commands.
 
 See `MySql.Data based solution` region in [source](https://github.com/fmarkyy98/XAMPP-MySQL-Test/blob/main/src/DbTest/Program.cs).
 
 ## `EntityFramework`
+
+https://www.nuget.org/packages/Pomelo.EntityFrameworkCore.MySql
 
 More robust ORM based solution.
 

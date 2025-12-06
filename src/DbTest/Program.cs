@@ -1,8 +1,10 @@
-﻿using System;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Threading.Tasks;
+﻿using Microsoft.EntityFrameworkCore;
 using MySql.Data.MySqlClient;
-using Microsoft.EntityFrameworkCore;
+using System;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Data;
+using System.Data.SqlTypes;
+using System.Threading.Tasks;
 
 namespace DbTest
 {
@@ -43,88 +45,141 @@ namespace DbTest
             await connection.OpenAsync();
             Console.WriteLine($"Connected to database '{database}'.");
 
-            // 2.1) Ensure table exists
-            var createTableSql = @"
+            // 2.1) Ensure tables exist
+            var createSchemaSql = @"
+                CREATE TABLE IF NOT EXISTS `owners` (
+                    `ID`   INT AUTO_INCREMENT PRIMARY KEY,
+                    `Name` VARCHAR(255) NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS `cats` (
-                    `ID`      INT AUTO_INCREMENT PRIMARY KEY,
-                    `Name`    VARCHAR(255) NOT NULL,
-                    `Is_Cute` BOOLEAN NOT NULL,
-                    `Color`   VARCHAR(255) NOT NULL
+                    `ID`        INT AUTO_INCREMENT PRIMARY KEY,
+                    `Name`      VARCHAR(255) NOT NULL,
+                    `Is_Cute`   BOOLEAN NOT NULL,
+                    `Color`     VARCHAR(255) NOT NULL,
+                    `Owner_ID`  INT NULL,
+                    FOREIGN KEY (`Owner_ID`) REFERENCES `owners`(`ID`)
+                        ON DELETE SET NULL
+                        ON UPDATE CASCADE
                 );
             ";
-
-            using (var cmd = new MySqlCommand(createTableSql, connection))
+            using (var cmd = new MySqlCommand(createSchemaSql, connection))
             {
                 await cmd.ExecuteNonQueryAsync();
-                Console.WriteLine("Table 'cats' ensured.");
+                Console.WriteLine("Tables 'owners' and 'cats' ensured.");
             }
 
             // At this point the scheme setup was successfull. It's we can start manipulate the DB.
 
-
             // 3) Add some test data to the database.
-            using (var cmd = new MySqlCommand("SELECT COUNT(*) FROM `cats`;", connection))
+            // We only insert sample owners and cats if BOTH tables are completely empty.
+            using (var cmd = new MySqlCommand(@"
+                SELECT (SELECT COUNT(*) FROM `owners`) + (SELECT COUNT(*) FROM `cats`);
+            ", connection))
             {
-                // 3.1) Check if table already contains data
-                var existingRows = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+                // 3.1) Check if both tables contain zero rows
+                var totalRows = Convert.ToInt32(await cmd.ExecuteScalarAsync());
 
-                if (existingRows == 0)
+                if (totalRows == 0)
                 {
-                    Console.WriteLine("No existing rows found. Inserting sample cats...");
+                    Console.WriteLine("No existing rows found in owners or cats. Inserting sample data...");
 
-                    // 3.2) Insert a few test records using parameterized queries
-                    var insertSql = @"
-                        INSERT INTO `cats` (`Name`, `Is_Cute`, `Color`)
-                        VALUES (@name, @cute, @color);
+                    // 3.2) Insert sample owners
+                    var insertOwnerSql = @"
+                        INSERT INTO `owners` (`Name`)
+                        VALUES (@name);
                     ";
+                    using var insertOwnerCmd = new MySqlCommand(insertOwnerSql, connection);
+                    insertOwnerCmd.Parameters.Add("@name", MySqlDbType.VarChar);
 
-                    using var insertCmd = new MySqlCommand(insertSql, connection);
-
-                    insertCmd.Parameters.Add("@name", MySqlDbType.VarChar);
-                    insertCmd.Parameters.Add("@cute", MySqlDbType.Byte);
-                    insertCmd.Parameters.Add("@color", MySqlDbType.VarChar);
-
-                    // Helper to avoid repeating parameter code
-                    async Task InsertCat(string name, bool cute, string color)
+                    async Task<long> InsertOwner(string name)
                     {
-                        insertCmd.Parameters["@name"].Value = name;
-                        insertCmd.Parameters["@cute"].Value = cute ? (byte)1 : (byte)0;
-                        insertCmd.Parameters["@color"].Value = color;
-                        await insertCmd.ExecuteNonQueryAsync();
+                        insertOwnerCmd.Parameters["@name"].Value = name;
+
+                        await insertOwnerCmd.ExecuteNonQueryAsync();
+                        return insertOwnerCmd.LastInsertedId;
                     }
 
-                    await InsertCat("Pimpi", true, "Brown");
-                    await InsertCat("Luna", true, "White");
-                    await InsertCat("Shadow", false, "Black");
+                    var ownerJohnId = await InsertOwner("John");
+                    var ownerSarahId = await InsertOwner("Sarah");
 
-                    Console.WriteLine("Sample data inserted.");
+                    Console.WriteLine("Sample owners inserted.");
+
+                    // 3.3) Insert sample cats assigned to owners
+                    var insertCatSql = @"
+                        INSERT INTO `cats` (`Name`, `Is_Cute`, `Color`, `Owner_ID`)
+                        VALUES (@name, @cute, @color, @owner);
+                    ";
+                    using var insertCatCmd = new MySqlCommand(insertCatSql, connection);
+                    insertCatCmd.Parameters.Add("@name", MySqlDbType.VarChar);
+                    insertCatCmd.Parameters.Add("@cute", MySqlDbType.Byte);
+                    insertCatCmd.Parameters.Add("@color", MySqlDbType.VarChar);
+                    insertCatCmd.Parameters.Add("@owner", MySqlDbType.Int32);
+
+                    async Task<long> InsertCat(string name, bool cute, string color, long? ownerId = null)
+                    {
+                        insertCatCmd.Parameters["@name"].Value = name;
+                        insertCatCmd.Parameters["@cute"].Value = cute;
+                        insertCatCmd.Parameters["@color"].Value = color;
+                        insertCatCmd.Parameters["@owner"].Value = ownerId;
+
+                        await insertCatCmd.ExecuteNonQueryAsync();
+                        return insertCatCmd.LastInsertedId;
+                    }
+
+                    // John owns 2 cats
+                    await InsertCat("Pimpi", true, "Brown", ownerJohnId);
+                    await InsertCat("Shadow", false, "Black", ownerJohnId);
+                    // Sarah owns 1 cat
+                    await InsertCat("Luna", true, "White", ownerSarahId);
+                    // unowned cat
+                    await InsertCat("Lala", true, "Grey");
+
+                    Console.WriteLine("Sample cats inserted.");
                 }
                 else
                 {
-                    Console.WriteLine("Table already contains data. Skipping sample insert.");
+                    Console.WriteLine("Database already contains data. Skipping sample insert.");
                 }
             }
+
+            Console.WriteLine("\n---\n");
 
             // 4) SELECT data
             // Basically every query can be processed like this.
             // The only difference is the query sting and the reader.Get<Type>(n).
             // Changes according to the column type in the query.
-            Console.WriteLine("\n---\n");
-
-            using (var cmd = new MySqlCommand("SELECT * FROM `cats`;", connection))
+            using (var cmd = new MySqlCommand(@"
+                SELECT *
+                FROM `cats`
+                LEFT JOIN `owners`
+                ON `cats`.`Owner_ID` = `owners`.`ID`;
+            ", connection))
             using (var reader = await cmd.ExecuteReaderAsync())
             {
-                Console.WriteLine("_________________________________");
-                Console.WriteLine("|Id\t|Name\t|IsCute\t|Color\t|");
-                Console.WriteLine("+-------+-------+-------+-------+");
+                Console.WriteLine("_________________________________________________________________________________");
+                Console.WriteLine("|C_Id\t|C_Name\t|C_IsCute\t|C_Color\t|C_OwnerId\t|O_Id\t|O_Name\t|");
+                Console.WriteLine("+-------+-------+---------------+---------------+---------------+-------+-------+");
                 while (await reader.ReadAsync())
                 {
-                    var id = reader.GetInt32(0);
-                    var name = reader.GetString(1);
-                    var isCute = reader.GetBoolean(2);
-                    var color = reader.GetString(3);
+                    var cat_id = reader.GetInt32(0);
+                    var cat_name = reader.GetString(1);
+                    var cat_isCute = reader.GetBoolean(2);
+                    var cat_color = reader.GetString(3);
 
-                    Console.WriteLine($"|{id}\t|{name}\t|{isCute}\t|{color}\t|");
+                    try
+                    {
+                        var cat_ownerId = reader.GetInt32(4);
+                        // owner fields
+                        var owner_id = reader.GetInt32(5);
+                        var owner_name = reader.GetString(6);
+
+                        Console.WriteLine($"|{cat_id}\t|{cat_name}\t|{cat_isCute}\t\t|{cat_color}\t\t|{cat_ownerId}\t\t|{owner_id}\t|{owner_name}\t|");
+                    }
+                    catch (SqlNullValueException)
+                    {
+                        Console.WriteLine($"|{cat_id}\t|{cat_name}\t|{cat_isCute}\t\t|{cat_color}\t\t|NULL (no owner data available)\t|");
+                    }
                 }
             }
         }

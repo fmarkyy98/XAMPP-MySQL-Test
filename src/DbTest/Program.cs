@@ -153,7 +153,7 @@ namespace DbTest
                 SELECT *
                 FROM `cats`
                 LEFT JOIN `owners`
-                ON `cats`.`Owner_ID` = `owners`.`ID`;
+                    ON `cats`.`Owner_ID` = `owners`.`ID`;
             ", connection))
             using (var reader = await cmd.ExecuteReaderAsync())
             {
@@ -167,16 +167,15 @@ namespace DbTest
                     var cat_isCute = reader.GetBoolean(2);
                     var cat_color = reader.GetString(3);
 
-                    try
+                    if (!reader.IsDBNull(4))
                     {
                         var cat_ownerId = reader.GetInt32(4);
-                        // owner fields
                         var owner_id = reader.GetInt32(5);
                         var owner_name = reader.GetString(6);
 
                         Console.WriteLine($"|{cat_id}\t|{cat_name}\t|{cat_isCute}\t\t|{cat_color}\t\t|{cat_ownerId}\t\t|{owner_id}\t|{owner_name}\t|");
                     }
-                    catch (SqlNullValueException)
+                    else
                     {
                         Console.WriteLine($"|{cat_id}\t|{cat_name}\t|{cat_isCute}\t\t|{cat_color}\t\t|NULL (no owner data available)\t|");
                     }

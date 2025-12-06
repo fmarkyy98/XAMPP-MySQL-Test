@@ -68,6 +68,17 @@ Simple approach using direct SQL commands.
 
 See `MySql.Data based solution` region in [source](https://github.com/fmarkyy98/XAMPP-MySQL-Test/blob/main/src/DbTest/Program.cs).
 
+Current impl shows how to:
+
+1. Connect to DataBase server.  
+  1.1. Create DB if not exists.
+1. Connect to specific DB.  
+  2.1. Create tables if not exist.
+1. Generate test data.  
+  3.1. Check if tables has no data in them.  
+  3.2-3. Insert sample date to tables.
+1. Query data and handle potential `null` values.
+
 ## `EntityFramework`
 
 https://www.nuget.org/packages/Pomelo.EntityFrameworkCore.MySql

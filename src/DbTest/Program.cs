@@ -1,9 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore;
-using MySql.Data.MySqlClient;
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Reflection.PortableExecutable;
 using System.Threading.Tasks;
+using MySql.Data.MySqlClient;
+using Microsoft.EntityFrameworkCore;
 
 namespace DbTest
 {
@@ -106,11 +105,18 @@ namespace DbTest
                 }
             }
 
-
             // 4) SELECT data
+            // Basically every query can be processed like this.
+            // The only difference is the query sting and the reader.Get<Type>(n).
+            // Changes according to the column type in the query.
+            Console.WriteLine("\n---\n");
+
             using (var cmd = new MySqlCommand("SELECT * FROM `cats`;", connection))
             using (var reader = await cmd.ExecuteReaderAsync())
             {
+                Console.WriteLine("_________________________________");
+                Console.WriteLine("|Id\t|Name\t|IsCute\t|Color\t|");
+                Console.WriteLine("+-------+-------+-------+-------+");
                 while (await reader.ReadAsync())
                 {
                     var id = reader.GetInt32(0);
@@ -118,7 +124,7 @@ namespace DbTest
                     var isCute = reader.GetBoolean(2);
                     var color = reader.GetString(3);
 
-                    Console.WriteLine($"{id}|{name}|{isCute}|{color}");
+                    Console.WriteLine($"|{id}\t|{name}\t|{isCute}\t|{color}\t|");
                 }
             }
         }
